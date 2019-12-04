@@ -1,5 +1,6 @@
 import os
 import sys
+import csv
 import numpy as np
 import pandas as pd
 
@@ -38,8 +39,8 @@ class frdt_database_t:
     else:
       self.faces_ = np.append(self.faces_, face_)
 
-  def exclude_face(self):
-    pass
+  def exclude_face(self, face_):
+    face_.is_face = False
     
   def verify_faces(self):
     pass
@@ -50,6 +51,7 @@ class frdt_database_t:
       self.sources_empty_ = False
     else:
       self.sources_ = np.append(self.sources_, source_)
+
   def remove_source(self):
     pass
     
@@ -60,7 +62,7 @@ class frdt_database_t:
     else:
       self.people_ = np.append(self.people_, person_)
     
-  def remove_person(self):
+  def remove_person(self, person_):
     pass
     
   def check_person(self):
@@ -69,25 +71,50 @@ class frdt_database_t:
   def merge_people(self):
     pass
     
-  def load_data(self):
-    pass
+  def compute_face(self, image_file_):
+    return np.random.rand(128)
     
+  def load_data(self, db_directory):
+    faces_dir = os.fsencode(db_directory + '/faces/')
+    people_dir = os.fsencode(db_directory + '/people/')
+    sources_dir = os.fsencode(db_directory + '/sources/')
+    excluded_faces_filename = db_directory + '/excluded_faces.csv'
+    # Load faces
+    face_id = 0
+    for file in os.listdir(faces_dir):
+      filename = os.fsdecode(file)
+      if filename.endswith('.jpg') or filename.endswith('.jpeg') or filename.endswith('.png'):
+        add_face(frdt_face_t(compute_face_features(file),face_id))
+        face_id += 1
+
+    # Load people
+    person_id = 0
+    for file in os.listdir(people_dir):
+      filename = os.fsdecode(file)
+      if filename.endswith('.csv'):
+        #add_person()
+        person_id += 1
+
+    # Load sources
+    source_id = 0
+    for file in os.listdir(source_dir):
+      filename = os.fsdecode(file)
+      if filename.endswith('.csv'):
+        #add_source()
+        source_id += 1
+        
+    # Load Excluded Faces
+    with open(excluded_faces_filename,'r') as f:
+      reader = csv.reader(f, delimiter=',')
+      excluded_faces = next(reader)
+      excluded_faces = np.array(excluded_faces).astype(float)
+      print(excluded_faces)
+    
+
   def save_data(self):
     pass
-
-A = frdt_face_t()
-B = frdt_person_t()
-C = frdt_source_t()
-D = frdt_database_t()
-D.add_face(A)
-D.add_face(A)
-D.add_face(frdt_face_t())
-D.add_person(B)
-D.add_source(C)
-
-
-print(D.faces_)
-print(D.sources_[0])
-print(D.people_[0])
+    
+database = frdt_database_t()
+database.load_data('/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/0/')
   
 print('Hello world!')
