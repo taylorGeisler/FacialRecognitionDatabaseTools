@@ -78,38 +78,51 @@ class frdt_database_t:
     faces_dir = os.fsencode(db_directory + '/faces/')
     people_dir = os.fsencode(db_directory + '/people/')
     sources_dir = os.fsencode(db_directory + '/sources/')
-    excluded_faces_filename = db_directory + '/excluded_faces.csv'
+    excluded_faces_filename = db_directory + 'excluded_faces.csv'
+
     # Load faces
     face_id = 0
     for file in os.listdir(faces_dir):
       filename = os.fsdecode(file)
       if filename.endswith('.jpg') or filename.endswith('.jpeg') or filename.endswith('.png'):
-        add_face(frdt_face_t(compute_face_features(file),face_id))
+        # add_face(frdt_face_t(compute_face_features(file),face_id))
         face_id += 1
 
     # Load people
     person_id = 0
     for file in os.listdir(people_dir):
+      person_faces = np.empty(0, dtype=int)
       filename = os.fsdecode(file)
       if filename.endswith('.csv'):
+        with open(os.fsdecode(people_dir)+filename,'r') as f:
+          reader = csv.reader(f, delimiter=',')
+          for row in reader:
+            for c in row:
+              person_faces = np.append(person_faces,int(c))
         #add_person()
         person_id += 1
 
     # Load sources
     source_id = 0
-    for file in os.listdir(source_dir):
+    for file in os.listdir(sources_dir):
+      source_faces = np.empty(0, dtype=int)
       filename = os.fsdecode(file)
       if filename.endswith('.csv'):
+        with open(os.fsdecode(sources_dir)+filename,'r') as f:
+          reader = csv.reader(f, delimiter=',')
+          for row in reader:
+            for c in row:
+              person_faces = np.append(person_faces,int(c))
         #add_source()
         source_id += 1
-        
+
     # Load Excluded Faces
+    excluded_faces = np.empty(0, dtype=int)
     with open(excluded_faces_filename,'r') as f:
       reader = csv.reader(f, delimiter=',')
-      excluded_faces = next(reader)
-      excluded_faces = np.array(excluded_faces).astype(float)
-      print(excluded_faces)
-    
+      for row in reader:
+        for c in row:
+          excluded_faces = np.append(excluded_faces,int(c))
 
   def save_data(self):
     pass
