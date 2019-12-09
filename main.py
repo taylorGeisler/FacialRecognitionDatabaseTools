@@ -41,13 +41,22 @@ class frdt_database_t:
     self.people_empty_ = True
     
   def num_faces(self):
-    return np.size(self.faces_)
+    if self.faces_empty_:
+      return 0
+    else:
+      return np.size(self.faces_)
 
   def num_people(self):
-    return np.size(self.people_)
+    if self.people_empty_:
+      return 0
+    else:
+      return np.size(self.people_)
     
   def num_sources(self):
-    return np.size(self.sources_)
+    if self.sources_empty_:
+      return 0
+    else:
+      return np.size(self.sources_)
     
   def add_face(self, face_):
     if self.faces_empty_:
@@ -60,31 +69,24 @@ class frdt_database_t:
     return frdt_face_t(np.random.rand(128), face_id_)
   
   def add_faces_dir(self, dir_):
-    face_id = self.num_faces()
-    for file in os.listdir(dir_):
+    for file in sorted(os.listdir(dir_)):
       filename = os.fsdecode(file)
       if filename.endswith('.jpg') or filename.endswith('.jpeg'):
         face_source = dir_ + filename
         if self.faces_empty_:
           face_destination = self.db_directory_ + 'faces/' + str(0).zfill(10) + '.jpeg'
+          self.add_face(self.compute_face(file,0))
         else:
-          face_destination = self.db_directory_ + 'faces/' + str(face_id).zfill(10) + '.jpeg'
-          face_id += 1
-        shutil.copyfile(face_source, face_destination) 
-        self.add_face(self.compute_face(file,face_id))
+          face_destination = self.db_directory_ + 'faces/' + str(self.num_faces()).zfill(10) + '.jpeg'
+          self.add_face(self.compute_face(file,self.num_faces()))
+        shutil.copyfile(face_source, face_destination)
 
   def exclude_face(self, face_id_):
     self.faces_[face_id_].is_face = False
-    excluded_faces_filename = self.db_directory_ + 'excluded_faces.csv'
-    if (os.stat(excluded_faces_filename).st_size == 0):
-      excl_file = open(self.db_directory_+'excluded_faces.csv' ,'a')
-      excl_file.write(str(face_id_))
-      excl_file.close()
-    else:
-      df = pd.read_csv(excluded_faces_filename, sep=',', header=None)
-      df[len(df.columns)] = face_id_
-      print(df.values)
-      df.to_csv(excluded_faces_filename)
+    excluded_faces_filename = self.db_directory_ + 'excluded_faces.npy'
+    excluded_faces = np.load(self.db_directory_+'excluded_faces.npy')
+    excluded_faces = np.append(excluded_faces, face_id_)
+    np.save(self.db_directory_+'excluded_faces.npy', excluded_faces)
     
   def exclude_loaded_face(self, face_id_):
     self.faces_[face_id_].is_face = False
@@ -106,19 +108,20 @@ class frdt_database_t:
       self.sources_ = np.append(self.sources_, source_)
     
   def create_source(self):
+    source_contents = np.empty(0, dtype=int)
     if self.sources_empty_:
-      open(self.db_directory_+'sources/'+str(0).zfill(10)+'.csv' ,'a').close()
+      np.save(self.db_directory_+'sources/'+str(0).zfill(10)+'.npy', source_contents)
     else:
-      open(self.db_directory_+'sources/'+str(self.num_sources()).zfill(10)+'.csv' ,'a').close()
+      np.save(self.db_directory_+'sources/'+str(self.num_sources()).zfill(10)+'.npy', source_contents)
     self.add_source(frdt_source_t(self.num_sources()))
     return self.num_sources()
 
   def add_face_to_source(self, source_id_, face_id_):
     self.get_source(source_id_).add_face(face_id_)
-    source_filename = self.db_directory_+'sources/'+str(source_id_).zfill(10)+'.csv'
-    df = pd.read_csv(source_filename, sep=',', header=None)
-    df[len(df.columns)] = face_id_
-    df.to_csv(source_filename)
+    source_filename = self.db_directory_+'sources/'+str(source_id_).zfill(10)+'.npy'
+    source_contents = np.load(source_filename)
+    source_contents = np.append(source_contents, face_id_)
+    np.save(self.db_directory_+'sources/'+str(source_id_).zfill(10)+'.npy', source_contents)
     
   def add_person(self, person_):
     if self.people_empty_:
@@ -128,102 +131,113 @@ class frdt_database_t:
       self.people_ = np.append(self.people_, person_)
 
   def create_person(self):
+    person_contents = np.empty(0, dtype=int)
     if self.people_empty_:
-      open(self.db_directory_+'people/'+str(0).zfill(10)+'.csv' ,'a').close()
+      np.save(self.db_directory_+'people/'+str(0).zfill(10)+'.npy', person_contents)
     else:
-      open(self.db_directory_+'people/'+str(self.num_people()).zfill(10)+'.csv' ,'a').close()
+      np.save(self.db_directory_+'people/'+str(self.num_people()).zfill(10)+'.npy', person_contents)
     self.add_person(frdt_source_t(self.num_people()))
     return self.num_people()
 
   def add_face_to_person(self, person_id_, face_id_):
     self.get_person(person_id_).add_face(face_id_)
-    person_filename = self.db_directory_+'people/'+str(source_id_).zfill(10)+'.csv'
-    df = pd.read_csv(person_filename, sep=',', header=None)
-    df[len(df.columns)] = face_id_
-    df.to_csv(person_filename)
+    person_filename = self.db_directory_+'people/'+str(person_id_).zfill(10)+'.npy'
+    person_contents = np.load(person_filename)
+    person_contents = np.append(person_contents, face_id_)
+    np.save(self.db_directory_+'people/'+str(person_id_).zfill(10)+'.npy', person_contents)
     
   def load_data(self):
-    faces_dir = os.fsencode(self.db_directory_ + '/faces/')
-    people_dir = os.fsencode(self.db_directory_ + '/people/')
-    sources_dir = os.fsencode(self.db_directory_ + '/sources/')
-    excluded_faces_filename = self.db_directory_ + 'excluded_faces.csv'
+    faces_dir = os.fsencode(self.db_directory_ + 'faces/')
+    people_dir = os.fsencode(self.db_directory_ + 'people/')
+    sources_dir = os.fsencode(self.db_directory_ + 'sources/')
+    excluded_faces_filename = self.db_directory_ + 'excluded_faces.npy'
 
     # Load faces
     face_id = 0
-    for file in os.listdir(faces_dir):
+    for file in sorted(os.listdir(faces_dir)):
       filename = os.fsdecode(file)
       if filename.endswith('.jpg') or filename.endswith('.jpeg') or filename.endswith('.png'):
         self.add_face(self.compute_face(file,face_id))
         face_id += 1
 
     # Load people
-    person_id = 0
-    for file in os.listdir(people_dir):
+    for file in sorted(os.listdir(people_dir)):
       person_faces = np.empty(0, dtype=int)
       filename = os.fsdecode(file)
-      if filename.endswith('.csv'):
-        with open(os.fsdecode(people_dir)+filename,'r') as f:
-          reader = csv.reader(f, delimiter=',')
-          for row in reader:
-            for c in row:
-              person_faces = np.append(person_faces,int(c))
+      if filename.endswith('.npy'):
+        person_faces = np.load(os.fsdecode(people_dir)+filename)
         self.add_person(frdt_person_t(person_faces))
-        person_id += 1
 
     # Load sources
-    source_id = 0
-    for file in os.listdir(sources_dir):
+    for file in sorted(os.listdir(sources_dir)):
       source_faces = np.empty(0, dtype=int)
       filename = os.fsdecode(file)
-      if filename.endswith('.csv'):
-        with open(os.fsdecode(sources_dir)+filename,'r') as f:
-          reader = csv.reader(f, delimiter=',')
-          for row in reader:
-            for c in row:
-              source_faces = np.append(source_faces,int(c))
+      if filename.endswith('.npy'):
+        source_faces = np.load(os.fsdecode(sources_dir)+filename)
         self.add_source(frdt_source_t(source_faces))
-        source_id += 1
 
     # Load Excluded Faces
-    with open(excluded_faces_filename,'r') as f:
-      reader = csv.reader(f, delimiter=',')
-      for row in reader:
-        for c in row:
-          self.exclude_loaded_face(int(c))
+    excluded_faces = np.load(excluded_faces_filename)
+    for face in excluded_faces:
+      self.exclude_loaded_face(face)
 
   def make_new_database_dir(self):
     os.makedirs(self.db_directory_, exist_ok=True)
     os.makedirs(self.db_directory_+'faces/', exist_ok=True)
     os.makedirs(self.db_directory_+'people/', exist_ok=True)
     os.makedirs(self.db_directory_+'sources/',exist_ok=True)
-    open(self.db_directory_+'excluded_faces.csv' ,'a').close()
-    
-###
+    excluded_faces = np.empty(0, dtype=int)
+    np.save(self.db_directory_+'excluded_faces.npy', excluded_faces)
 
-db_directory = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/0/'
+##########################################################################################
+# main program
+##########################################################################################
+
+db_directory = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/2/'
 database = frdt_database_t(db_directory)
 database.load_data()
+# 
+# db_directory1 = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1/'
+# database1 = frdt_database_t(db_directory1)
+# database1.make_new_database_dir()
+# 
+# faces_dir = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/0/faces/'
+# database1.add_faces_dir(faces_dir)
+# 
+# for i in range(10):
+#   database.create_source()
+#   
+# for i in range(9):
+#   database.create_person()
+#   
+# 
+# database1.exclude_face(5)
+# database1.exclude_face(7)
+# 
+# database1.add_face_to_source(1,5)
+# database1.add_face_to_source(1,7)
 
-db_directory1 = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1/'
-database1 = frdt_database_t(db_directory1)
-database1.make_new_database_dir()
-
-faces_dir = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/0/faces/'
-database1.add_faces_dir(faces_dir)
-
-for i in range(10):
-  database1.create_source()
-  
-for i in range(9):
-  database1.create_person()
-  
-
-database1.exclude_face(5)
-database1.exclude_face(7)
-
-database1.add_face_to_source(1,5)
-database1.add_face_to_source(1,7)
-  
+# db_directory2 = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/3/'
+# database2 = frdt_database_t(db_directory2)
+# database2.make_new_database_dir()
+# 
+# for i in range(10):
+#   database2.create_source()
+# 
+# for i in range(10):
+#   database2.create_person()
+# 
+# faces_dir = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/0/faces/'
+# database2.add_faces_dir(faces_dir)
+# 
+# for i in range(12):
+#   database2.exclude_face(i)
+# 
+# database2.add_face_to_source(9,5)
+# database2.add_face_to_source(1,7)
+# 
+# database2.add_face_to_person(9,5)
+# database2.add_face_to_person(1,7)
 
 print('Number of faces: ' + str(database.num_faces()))
 print('Number of people: ' + str(database.num_people()))
