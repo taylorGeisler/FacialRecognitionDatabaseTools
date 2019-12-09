@@ -4,6 +4,22 @@ import csv
 import numpy as np
 import pandas as pd
 import shutil
+from tensorflow.keras.models import load_model
+
+def get_embedding(model, face_pixels):
+	# scale pixel values
+	face_pixels = face_pixels.astype('float32')
+	# standardize pixel values across channels (global)
+	mean, std = face_pixels.mean(), face_pixels.std()
+	face_pixels = (face_pixels - mean) / std
+	# transform face into one sample
+	samples = expand_dims(face_pixels, axis=0)
+	# make prediction to get embedding
+	yhat = model.predict(samples)
+	return yhat[0]
+
+def compute_facenet_features(image_file):
+  return np.empty(128, dtype=np.float64)
 
 class frdt_face_t:
   def __init__(self, features_=np.empty(128, dtype=np.float64), id_=-1, is_classified_=False):
@@ -31,8 +47,9 @@ class frdt_source_t:
     self.face_ids_ = np.append(self.face_ids_, face_id_)
 
 class frdt_database_t:
-  def __init__(self, db_directory_):
+  def __init__(self, db_directory_, facenet_model_=load_model('facenet_keras.h5', compile=False)):
     self.db_directory_ = db_directory_
+    self.facenet_model_ = facenet_model_
     self.faces_ = np.array(0, dtype=object)
     self.sources_ = np.array(0, dtype=object)
     self.people_ = np.array(0, dtype=object)
@@ -66,7 +83,7 @@ class frdt_database_t:
       self.faces_ = np.append(self.faces_, face_)
       
   def compute_face(self, image_file_, face_id_):
-    return frdt_face_t(np.random.rand(128), face_id_)
+    return frdt_face_t(compute_facenet_features(image_file_), face_id_)
   
   def add_faces_dir(self, dir_):
     for file in sorted(os.listdir(dir_)):
