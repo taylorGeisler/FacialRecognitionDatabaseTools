@@ -30,6 +30,9 @@ class frdt_face_t:
     
   def get_face_id(self):
     return self.face_id_
+    
+  def get_features(self):
+    return self.face_features_
 
 class frdt_person_t:
   def __init__(self, face_ids_=np.empty(0, dtype=np.float64), person_info_=''):
@@ -69,6 +72,7 @@ class frdt_database_t:
     self.faces_empty_ = True
     self.sources_empty_ = True
     self.people_empty_ = True
+    self.svm_up_to_date_ = False
     
   def get_face(self, face_id_):
     return self.faces_[face_id_]
@@ -109,8 +113,15 @@ class frdt_database_t:
     image = image.convert('RGB')
     image = image.resize(self.facenet_model_im_size_)
     face_pixels = np.asarray(image)
+    print(face_id_)
     embedding = get_embedding(self.facenet_model_, face_pixels)
+    np.save(self.db_directory_+'face_features/'+str(face_id_).zfill(10)+'.npy',embedding)
     return frdt_face_t(embedding, face_id_)
+    
+  def recompute_faces(self):
+    for i in range(self.num_faces()):
+      filepath = self.db_directory_ + 'faces/' + str(i).zfill(10) + '.jpeg'
+      self.compute_face(filepath,i)
   
   def add_faces_dir(self, dir_):
     for file in sorted(os.listdir(dir_)):
@@ -172,6 +183,7 @@ class frdt_database_t:
     else:
       np.save(self.db_directory_+'people/'+str(self.num_people()).zfill(10)+'.npy', person_contents)
     self.add_person(frdt_source_t(self.num_people()))
+    self.svm_up_to_date_ = False
     return self.num_people()-1
 
   def add_face_to_person(self, person_id_, face_id_):
@@ -204,20 +216,32 @@ class frdt_database_t:
       plt.imshow(face_pixels, cmap=plt.cm.binary)
     plt.show(block=True)
     
+  def train_svm(self):
+    pass
+    
+  def predict_person(self, face_features_):
+    pass
+    
+  def recognize_face(self, face_id_):
+    pass
+    
   def load_data(self):
     faces_dir = os.fsencode(self.db_directory_ + 'faces/')
     people_dir = os.fsencode(self.db_directory_ + 'people/')
     sources_dir = os.fsencode(self.db_directory_ + 'sources/')
+    face_features_dir = os.fsencode(self.db_directory_ + 'face_features/')
     excluded_faces_filename = self.db_directory_ + 'excluded_faces.npy'
 
     # Load faces
     print('Loading Faces...')
     face_id = 0
-    for file in sorted(os.listdir(faces_dir)):
+    for file in sorted(os.listdir(face_features_dir)):
       filename = os.fsdecode(file)
-      filepath = os.fsdecode(faces_dir)+filename
-      if filename.endswith('.jpg') or filename.endswith('.jpeg') or filename.endswith('.png'):
-        self.add_face(self.compute_face(filepath,face_id))
+      filepath = os.fsdecode(face_features_dir)+filename
+      if filename.endswith('.npy'):
+        face_features = np.load(filepath)
+        face = frdt_face_t(face_features)
+        self.add_face(face)
         face_id += 1
         
     # Load Excluded Faces
@@ -248,6 +272,7 @@ class frdt_database_t:
     os.makedirs(self.db_directory_+'faces/', exist_ok=True)
     os.makedirs(self.db_directory_+'people/', exist_ok=True)
     os.makedirs(self.db_directory_+'sources/',exist_ok=True)
+    os.makedirs(self.db_directory_+'face_features/', exist_ok=True)
     excluded_faces = np.empty(0, dtype=int)
     np.save(self.db_directory_+'excluded_faces.npy', excluded_faces)
 
@@ -258,8 +283,9 @@ class frdt_database_t:
 db_directory = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1_million/'
 db = frdt_database_t(db_directory)
 db.load_data()
-for i in range(db.num_people()):
-  db.show_faces_person(i)
+db.recompute_faces()
+# for i in range(db.num_people()):
+#   db.show_faces_person(i)
 # # 
 # # pid = database.create_person()
 # # 
@@ -275,6 +301,6 @@ for i in range(db.num_people()):
 #   print(i)
 # 
 # 
-# print('Number of faces: ' + str(db.num_faces()))
-# print('Number of people: ' + str(db.num_people()))
-# print('Number of sources: ' + str(db.num_sources()))
+print('Number of faces: ' + str(db.num_faces()))
+print('Number of people: ' + str(db.num_people()))
+print('Number of sources: ' + str(db.num_sources()))
