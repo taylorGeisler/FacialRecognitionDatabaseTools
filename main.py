@@ -8,6 +8,9 @@ import shutil
 from tensorflow.keras.models import load_model
 from PIL import Image
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import Normalizer
+from sklearn.svm import SVC
 
 def get_embedding(model, face_pixels):
   # scale pixel values
@@ -20,6 +23,38 @@ def get_embedding(model, face_pixels):
   # make prediction to get embedding
   yhat = model.predict(samples)
   return yhat[0]
+  
+def query_yes_no(question, default="yes"):
+    """Ask a yes/no question via raw_input() and return their answer.
+
+    "question" is a string that is presented to the user.
+    "default" is the presumed answer if the user just hits <Enter>.
+        It must be "yes" (the default), "no" or None (meaning
+        an answer is required of the user).
+
+    The "answer" return value is True for "yes" or False for "no".
+    """
+    valid = {"yes": True, "y": True, "ye": True,
+             "no": False, "n": False}
+    if default is None:
+        prompt = " [y/n] "
+    elif default == "yes":
+        prompt = " [Y/n] "
+    elif default == "no":
+        prompt = " [y/N] "
+    else:
+        raise ValueError("invalid default answer: '%s'" % default)
+
+    while True:
+        sys.stdout.write(question + prompt)
+        choice = input().lower()
+        if default is not None and choice == '':
+            return valid[default]
+        elif choice in valid:
+            return valid[choice]
+        else:
+            sys.stdout.write("Please respond with 'yes' or 'no' "
+                             "(or 'y' or 'n').\n")
 
 class frdt_face_t:
   def __init__(self, features_=np.empty(128, dtype=np.float64), id_=-1, is_classified_=False):
@@ -195,6 +230,7 @@ class frdt_database_t:
     
   def show_faces_person(self,person_id_):
     person = self.get_person(person_id_)
+    print(type(person))
     face_ids = person.get_face_ids()
     if person.num_faces() < 25:
       num_faces_show = person.num_faces()
@@ -216,14 +252,75 @@ class frdt_database_t:
       plt.imshow(face_pixels, cmap=plt.cm.binary)
     plt.show(block=True)
     
+  def show_face_add_person(self,person_id_,new_face_id_):
+    person = self.get_person(person_id_)
+    face_ids = person.get_face_ids()
+    if person.num_faces() < 25:
+      num_faces_show = person.num_faces()
+    else:
+      num_faces_show = 25
+    
+    plt.figure(figsize=(10,12))
+    for i in range(num_faces_show):
+      face_id = face_ids[i]
+      image_filepath_ = self.db_directory_ + 'faces/' + str(face_id).zfill(10) + '.jpeg'
+      image = Image.open(image_filepath_)
+      image = image.convert('RGB')
+      face_pixels = np.asarray(image)
+      
+      plt.subplot(6,5,i+1)
+      plt.xticks([])
+      plt.yticks([])
+      plt.grid(False)
+      plt.imshow(face_pixels, cmap=plt.cm.binary)
+      
+    image_filepath_ = self.db_directory_ + 'faces/' + str(new_face_id_).zfill(10) + '.jpeg'
+    image = Image.open(image_filepath_)
+    image = image.convert('RGB')
+    face_pixels = np.asarray(image)
+    
+    plt.subplot(6,5,28)
+    plt.xticks([])
+    plt.yticks([])
+    plt.grid(False)
+    plt.imshow(face_pixels, cmap=plt.cm.binary)
+    
+    plt.show(block=True)
+    
+  def load_dataset_svm(self):
+    trainX = list()
+    trainy = list()
+    for i in range(self.num_people()):
+      person = self.get_person(i)
+      face_ids = person.get_face_ids()
+      for j in range(np.size(face_ids)):
+        face = self.get_face(face_ids[j])
+        trainX.append(face.get_features())
+        trainy.append(i)
+    return trainX, trainy
+    
   def train_svm(self):
-    pass
+    trainX, trainy = self.load_dataset_svm()
+    in_encoder = Normalizer(norm='l2')
+    trainX = in_encoder.transform(trainX)
+    out_encoder = LabelEncoder()
+    out_encoder.fit(trainy)
+    trainy = out_encoder.transform(trainy)
+    model = SVC(kernel='linear', probability=True)
+    model.fit(trainX, trainy)
+    self.svm_up_to_date_ = True
+    return model
     
-  def predict_person(self, face_features_):
-    pass
-    
-  def recognize_face(self, face_id_):
-    pass
+  def recognize_face(self, face_id_, svc_model_):
+    face = self.get_face(face_id_)
+    features = np.copy(face.get_features())
+    features = features.reshape(1,-1)
+    yhat = svc_model_.predict(features)
+    yhat_prob = svc_model_.predict_proba(features)
+    self.show_face_add_person(yhat[0],face_id_)
+    if query_yes_no('Does this face belong to this person?',default='no'):
+      self.add_face_to_person(yhat[0],face_id_)
+    return yhat[0], yhat_prob[0]
     
   def load_data(self):
     faces_dir = os.fsencode(self.db_directory_ + 'faces/')
@@ -276,16 +373,25 @@ class frdt_database_t:
     excluded_faces = np.empty(0, dtype=int)
     np.save(self.db_directory_+'excluded_faces.npy', excluded_faces)
 
-##########################################################################################
+ ##########################################################################################
 # main program
-##########################################################################################
+ ##########################################################################################
 
 db_directory = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1_million/'
 db = frdt_database_t(db_directory)
 db.load_data()
-db.recompute_faces()
+
+SVC = db.train_svm()
+for i in range(455,456):
+  db.recognize_face(i,SVC)
+# db.add_faces_dir('/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1_million/faces_to_add/')
+# SVC = db.train_svm()
+# index, prob = db.recognize_face(454,SVC)
+# print(index)
+# print(prob)
+
 # for i in range(db.num_people()):
-#   db.show_faces_person(i)
+# # db.show_faces_person(i)
 # # 
 # # pid = database.create_person()
 # # 
