@@ -228,9 +228,8 @@ class frdt_database_t:
     person_contents = np.append(person_contents, face_id_)
     np.save(self.db_directory_+'people/'+str(person_id_).zfill(10)+'.npy', person_contents)
     
-  def show_faces_person(self,person_id_):
+  def show_person(self,person_id_):
     person = self.get_person(person_id_)
-    print(type(person))
     face_ids = person.get_face_ids()
     if person.num_faces() < 25:
       num_faces_show = person.num_faces()
@@ -252,7 +251,7 @@ class frdt_database_t:
       plt.imshow(face_pixels, cmap=plt.cm.binary)
     plt.show(block=True)
     
-  def show_face_add_person(self,person_id_,new_face_id_):
+  def show_face_add_person(self,person_id_,new_face_id_,yhat_prob_):
     person = self.get_person(person_id_)
     face_ids = person.get_face_ids()
     if person.num_faces() < 25:
@@ -284,6 +283,7 @@ class frdt_database_t:
     plt.yticks([])
     plt.grid(False)
     plt.imshow(face_pixels, cmap=plt.cm.binary)
+    plt.xlabel('Probability: ' + str(yhat_prob_))
     
     plt.show(block=True)
     
@@ -317,8 +317,11 @@ class frdt_database_t:
     features = features.reshape(1,-1)
     yhat = svc_model_.predict(features)
     yhat_prob = svc_model_.predict_proba(features)
-    self.show_face_add_person(yhat[0],face_id_)
-    if query_yes_no('Does this face belong to this person?',default='no'):
+    if yhat_prob[0,yhat] < 0.99:
+      self.show_face_add_person(yhat[0],face_id_,yhat_prob[0,yhat])
+      if query_yes_no('Does this face belong to this person?',default='no'):
+        self.add_face_to_person(yhat[0],face_id_)
+    else:
       self.add_face_to_person(yhat[0],face_id_)
     return yhat[0], yhat_prob[0]
     
@@ -381,9 +384,20 @@ db_directory = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databa
 db = frdt_database_t(db_directory)
 db.load_data()
 
-SVC = db.train_svm()
-for i in range(455,456):
-  db.recognize_face(i,SVC)
+# for i in range(db.num_people()):
+#   db.show_person(i)
+
+# for i in range(1724):
+#   db.create_source()
+
+# SVC = db.train_svm()
+# 
+# n0 = db.num_faces()
+# db.add_faces_dir('/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1_million/faces_to_add/')
+# n1 = db.num_faces()
+# for i in range(n0,n1):
+#   db.recognize_face(i,SVC)
+
 # db.add_faces_dir('/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1_million/faces_to_add/')
 # SVC = db.train_svm()
 # index, prob = db.recognize_face(454,SVC)
