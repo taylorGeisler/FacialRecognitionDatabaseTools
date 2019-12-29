@@ -104,10 +104,15 @@ class frdt_database_t:
     self.faces_ = np.array(0, dtype=object)
     self.sources_ = np.array(0, dtype=object)
     self.people_ = np.array(0, dtype=object)
+    self.face_info_ = pd.DataFrame()
+    self.person_info_ = pd.DataFrame()
+    self.source_info_ = pd.DataFrame()
     self.faces_empty_ = True
     self.sources_empty_ = True
     self.people_empty_ = True
     self.svm_up_to_date_ = False
+    
+  # Get database properties and contents
     
   def get_face(self, face_id_):
     return self.faces_[face_id_]
@@ -135,13 +140,19 @@ class frdt_database_t:
       return 0
     else:
       return np.size(self.sources_)
-    
+      
+  # Modify database
+  
+  ## Modify faces
+  
   def add_face(self, face_):
     if self.faces_empty_:
       self.faces_ = np.array([face_])
       self.faces_empty_ = False
     else:
       self.faces_ = np.append(self.faces_, face_)
+    self.face_info_.append({'info': ''}, ignore_index=True)
+    face_info.to_pickle(self.db_directory_+'face_info.pkl')
       
   def compute_face(self, image_filepath_, face_id_):
     image = Image.open(image_filepath_)
@@ -180,30 +191,9 @@ class frdt_database_t:
     
   def exclude_loaded_face(self, face_id_):
     self.faces_[face_id_].is_face = False
-    
-  def add_source(self, source_):
-    if self.sources_empty_:
-      self.sources_ = np.array([source_])
-      self.sources_empty_ = False
-    else:
-      self.sources_ = np.append(self.sources_, source_)
-    
-  def create_source(self):
-    source_contents = np.empty(0, dtype=int)
-    if self.sources_empty_:
-      np.save(self.db_directory_+'sources/'+str(0).zfill(10)+'.npy', source_contents)
-    else:
-      np.save(self.db_directory_+'sources/'+str(self.num_sources()).zfill(10)+'.npy', source_contents)
-    self.add_source(frdt_source_t(self.num_sources()))
-    return self.num_sources()-1
-
-  def add_face_to_source(self, source_id_, face_id_):
-    self.get_source(source_id_).add_face(face_id_)
-    source_filename = self.db_directory_+'sources/'+str(source_id_).zfill(10)+'.npy'
-    source_contents = np.load(source_filename)
-    source_contents = np.append(source_contents, face_id_)
-    np.save(self.db_directory_+'sources/'+str(source_id_).zfill(10)+'.npy', source_contents)
-    
+  
+  ## Modify people
+  
   def add_person(self, person_):
     if self.people_empty_:
       self.people_ = np.array([person_])
@@ -287,6 +277,56 @@ class frdt_database_t:
     
     plt.show(block=True)
     
+  ## Modify sources
+  
+  def add_source(self, source_):
+    if self.sources_empty_:
+      self.sources_ = np.array([source_])
+      self.sources_empty_ = False
+    else:
+      self.sources_ = np.append(self.sources_, source_)
+    
+  def create_source(self):
+    source_contents = np.empty(0, dtype=int)
+    if self.sources_empty_:
+      np.save(self.db_directory_+'sources/'+str(0).zfill(10)+'.npy', source_contents)
+    else:
+      np.save(self.db_directory_+'sources/'+str(self.num_sources()).zfill(10)+'.npy', source_contents)
+    self.add_source(frdt_source_t(self.num_sources()))
+    return self.num_sources()-1
+
+  def add_face_to_source(self, source_id_, face_id_):
+    self.get_source(source_id_).add_face(face_id_)
+    source_filename = self.db_directory_+'sources/'+str(source_id_).zfill(10)+'.npy'
+    source_contents = np.load(source_filename)
+    source_contents = np.append(source_contents, face_id_)
+    np.save(self.db_directory_+'sources/'+str(source_id_).zfill(10)+'.npy', source_contents)
+    
+  def show_source(self,source_id_):
+    source = self.get_source(source_id_)
+    face_ids = source.get_face_ids()
+    if source.num_faces() < 25:
+      num_faces_show = source.num_faces()
+    else:
+      num_faces_show = 25
+    
+    plt.figure(figsize=(10,10))
+    for i in range(num_faces_show):
+      face_id = face_ids[i]
+      image_filepath_ = self.db_directory_ + 'faces/' + str(face_id).zfill(10) + '.jpeg'
+      image = Image.open(image_filepath_)
+      image = image.convert('RGB')
+      face_pixels = np.asarray(image)
+      
+      plt.subplot(5,5,i+1)
+      plt.xticks([])
+      plt.yticks([])
+      plt.grid(False)
+      plt.imshow(face_pixels, cmap=plt.cm.binary)
+    plt.show(block=True)
+  
+  ## Face classification
+  
   def load_dataset_svm(self):
     trainX = list()
     trainy = list()
@@ -325,6 +365,7 @@ class frdt_database_t:
       self.add_face_to_person(yhat[0],face_id_)
     return yhat[0], yhat_prob[0]
     
+  # Load saved database
   def load_data(self):
     faces_dir = os.fsencode(self.db_directory_ + 'faces/')
     people_dir = os.fsencode(self.db_directory_ + 'people/')
@@ -343,7 +384,7 @@ class frdt_database_t:
         face = frdt_face_t(face_features)
         self.add_face(face)
         face_id += 1
-        
+
     # Load Excluded Faces
     excluded_faces = np.load(excluded_faces_filename)
     for face in excluded_faces:
@@ -367,21 +408,40 @@ class frdt_database_t:
         source_faces = np.load(os.fsdecode(sources_dir)+filename)
         self.add_source(frdt_source_t(source_faces))
 
+    # Load info files
+    self.face_info_ = pd.read_pickle(self.db_directory_+'face_info.pkl')
+    self.person_info_ = pd.read_pickle(self.db_directory_+'person_info.pkl')
+    self.source_info_ = pd.read_pickle(self.db_directory_+'source_info.pkl')
+
+  # Create new database
   def make_new_database_dir(self):
+    # Must load database before use
     os.makedirs(self.db_directory_, exist_ok=True)
     os.makedirs(self.db_directory_+'faces/', exist_ok=True)
     os.makedirs(self.db_directory_+'people/', exist_ok=True)
     os.makedirs(self.db_directory_+'sources/',exist_ok=True)
     os.makedirs(self.db_directory_+'face_features/', exist_ok=True)
+    os.makedirs(self.db_directory_+'faces_to_add/', exist_ok=True)
+    os.makedirs(self.db_directory_+'people_to_add/', exist_ok=True)
+    os.makedirs(self.db_directory_+'sources_to_add/',exist_ok=True)
+    col_names = ['info']
+    face_info = pd.DataFrame(columns = col_names)
+    face_info.to_pickle(self.db_directory_+'face_info.pkl')
+    person_info = pd.DataFrame(columns = col_names)
+    person_info.to_pickle(self.db_directory_+'person_info.pkl')
+    source_info = pd.DataFrame(columns = col_names)
+    source_info.to_pickle(self.db_directory_+'source_info.pkl')
     excluded_faces = np.empty(0, dtype=int)
     np.save(self.db_directory_+'excluded_faces.npy', excluded_faces)
+    
 
  ##########################################################################################
 # main program
  ##########################################################################################
 
-db_directory = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1_million/'
+db_directory = '/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1million_pkl/'
 db = frdt_database_t(db_directory)
+db.make_new_database_dir()
 db.load_data()
 
 # for i in range(db.num_people()):
@@ -393,8 +453,11 @@ db.load_data()
 # SVC = db.train_svm()
 # 
 # n0 = db.num_faces()
-# db.add_faces_dir('/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1_million/faces_to_add/')
+# db.add_faces_dir('/Users/taylor/Google Drive/Developer/computer_vision/frdt_databases/1million_pkl/faces_to_add/')
 # n1 = db.num_faces()
+
+print(db.face_info_.shape)
+
 # for i in range(n0,n1):
 #   db.recognize_face(i,SVC)
 
