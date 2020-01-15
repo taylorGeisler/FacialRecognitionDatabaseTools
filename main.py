@@ -5,7 +5,7 @@ import numpy as np
 from numpy import linalg as LA
 import pandas as pd
 import shutil
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model  
 from PIL import Image
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
@@ -23,17 +23,8 @@ def get_embedding(model, face_pixels):
   # make prediction to get embedding
   yhat = model.predict(samples)
   return yhat[0]
-  
+
 def query_yes_no(question, default="yes"):
-    """Ask a yes/no question via raw_input() and return their answer.
-
-    "question" is a string that is presented to the user.
-    "default" is the presumed answer if the user just hits <Enter>.
-        It must be "yes" (the default), "no" or None (meaning
-        an answer is required of the user).
-
-    The "answer" return value is True for "yes" or False for "no".
-    """
     valid = {"yes": True, "y": True, "ye": True,
              "no": False, "n": False}
     if default is None:
